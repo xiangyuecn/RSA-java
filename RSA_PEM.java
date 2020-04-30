@@ -82,20 +82,20 @@ public class RSA_PEM {
 			Key_D=dOrNull;//privateExponent
 			
 			//反推P、Q
-		    BigInteger n = BigX(modulus);
+			BigInteger n = BigX(modulus);
 			BigInteger e = BigX(exponent);
-		    BigInteger d = BigX(dOrNull);
-		    BigInteger p = findFactor(e, d, n);
-		    BigInteger q = n.divide(p);
-		    if (p.compareTo(q) > 0) {
-		        BigInteger t = p;
-		        p = q;
-		        q = t;
-		    }
-		    BigInteger exp1 = d.mod(p.subtract(BigInteger.ONE));
-		    BigInteger exp2 = d.mod(q.subtract(BigInteger.ONE));
-		    BigInteger coeff = q.modInverse(p);
-		    
+			BigInteger d = BigX(dOrNull);
+			BigInteger p = findFactor(e, d, n);
+			BigInteger q = n.divide(p);
+			if (p.compareTo(q) > 0) {
+				BigInteger t = p;
+				p = q;
+				q = t;
+			}
+			BigInteger exp1 = d.mod(p.subtract(BigInteger.ONE));
+			BigInteger exp2 = d.mod(q.subtract(BigInteger.ONE));
+			BigInteger coeff = q.modInverse(p);
+			
 			Val_P=BigB(p);//prime1
 			Val_Q=BigB(q);//prime2
 			Val_DP=BigB(exp1);//exponent1
@@ -116,7 +116,7 @@ public class RSA_PEM {
 	public RSAPublicKey getRSAPublicKey() throws Exception {
 		RSAPublicKeySpec spec=new RSAPublicKeySpec(BigX(Key_Modulus), BigX(Key_Exponent));
 		KeyFactory factory=KeyFactory.getInstance("RSA");
-        return (RSAPublicKey)factory.generatePublic(spec);
+		return (RSAPublicKey)factory.generatePublic(spec);
 	}
 	/**得到私钥Java对象**/
 	public RSAPrivateKey getRSAPrivateKey() throws Exception {
@@ -152,31 +152,31 @@ public class RSA_PEM {
 	 * https://v2ex.com/t/661736
 	 ***/
 	private static BigInteger findFactor(BigInteger e, BigInteger d, BigInteger n) {
-	    BigInteger edMinus1 = e.multiply(d).subtract(BigInteger.ONE);
-	    int s = edMinus1.getLowestSetBit();
-	    BigInteger t = edMinus1.shiftRight(s);
-	    
-	    long now=System.currentTimeMillis();
-	    for (int aInt = 2; true; aInt++) {
-	    	if(aInt%10==0 && System.currentTimeMillis()-now>3000) {
-	    		throw new RuntimeException("推算RSA.P超时");//测试最多循环2次，1024位的速度很快 8ms
-	    	}
-	    	
-	        BigInteger aPow = BigInteger.valueOf(aInt).modPow(t, n);
-	        for (int i = 1; i <= s; i++) {
-	            if (aPow.equals(BigInteger.ONE)) {
-	                break;
-	            }
-	            if (aPow.equals(n.subtract(BigInteger.ONE))) {
-	                break;
-	            }
-	            BigInteger aPowSquared = aPow.multiply(aPow).mod(n);
-	            if (aPowSquared.equals(BigInteger.ONE)) {
-	                return aPow.subtract(BigInteger.ONE).gcd(n);
-	            }
-	            aPow = aPowSquared;
-	        }
-	    }
+		BigInteger edMinus1 = e.multiply(d).subtract(BigInteger.ONE);
+		int s = edMinus1.getLowestSetBit();
+		BigInteger t = edMinus1.shiftRight(s);
+		
+		long now=System.currentTimeMillis();
+		for (int aInt = 2; true; aInt++) {
+			if(aInt%10==0 && System.currentTimeMillis()-now>3000) {
+				throw new RuntimeException("推算RSA.P超时");//测试最多循环2次，1024位的速度很快 8ms
+			}
+			
+			BigInteger aPow = BigInteger.valueOf(aInt).modPow(t, n);
+			for (int i = 1; i <= s; i++) {
+				if (aPow.equals(BigInteger.ONE)) {
+					break;
+				}
+				if (aPow.equals(n.subtract(BigInteger.ONE))) {
+					break;
+				}
+				BigInteger aPowSquared = aPow.multiply(aPow).mod(n);
+				if (aPowSquared.equals(BigInteger.ONE)) {
+					return aPow.subtract(BigInteger.ONE).gcd(n);
+				}
+				aPow = aPowSquared;
+			}
+		}
 	}
 	
 	
