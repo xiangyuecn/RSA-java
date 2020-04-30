@@ -73,7 +73,7 @@ boolean：**hasPrivate()**(是否包含私钥)
 **static RSA_PEM FromXML(String xml)**：将XML格式密钥转成PEM，支持公钥xml、私钥xml，出错将会抛出异常。
 
 
-## 如何构造Cipher来加密、解密
+## 如何加密、解密、签名、校验
 得到了RSA_PEM后，加密解密就异常简单了，没那么多啰嗦难懂的代码。
 ``` java
 RAS_PEM pem=RSA_PEM.FromPEM("-----BEGIN XXX KEY-----..此处意思意思..-----END XXX KEY-----");
@@ -88,9 +88,21 @@ Cipher dec = Cipher.getInstance("RSA");
 dec.init(Cipher.DECRYPT_MODE, pem.getRSAPrivateKey());
 byte[] de = dec.doFinal(en);
 String deTxt=new String(de,"utf-8");//测试123
+
+//通过私钥构造签名对象
+Signature signature=Signature.getInstance("SHA1WithRSA");
+signature.initSign(pem.getRSAPrivateKey());
+signature.update("测试123".getBytes("utf-8"));
+byte[] signBytes=signature.sign();
+
+//通过公钥构造签名校验对象
+Signature signVerify=Signature.getInstance("SHA1WithRSA");
+signVerify.initVerify(pem.getRSAPublicKey());
+signVerify.update("测试123".getBytes("utf-8"));
+boolean isVerify=signVerify.verify(signBytes);
 ```
 
-更多的加密、解密、签名、校验例子，请阅读`Test.java`。
+更多的实例，请阅读`Test.java`。
 
 
 # :open_book:图例
@@ -108,6 +120,10 @@ RSA工具（非开源）：
 # :open_book:知识库
 
 请移步到[RSA-csharp](https://github.com/xiangyuecn/RSA-csharp)阅读知识库部分，知识库内包含了详细的PEM格式解析，和部分ASN.1语法；然后逐字节分解PEM字节码教程。
+
+本库的诞生是由于微信付款到银行卡的功能，然后微信提供的RSA公钥接口返回的公钥和openssl -RSAPublicKey_out生成的一样，公钥 PEM 字节码内没有OID（目测是因为不带 OID 所以openssl 自己都不支持用这个公钥来加密数据）,这种是不是PKCS#1 格式不清楚，正反都是难用，所以就撸了一个java版转换代码，也不是难事以前撸过C#的，copy C#的代码过来改改就上线使用了。
+
+本库的代码整理未使用IDE，RSA_PEM.java copy过来的，Test.java直接用的文本编辑器编写，*.java文件全部丢到根目录，没有创建包名目录，源码直接根目录裸奔，简单粗暴；这样的项目结构肉眼看去也算是简洁，也方便copy文件使用。
 
 
 # :star:捐赠
