@@ -33,7 +33,8 @@
 
 此文件不依赖任何文件，可以直接copy这个文件到你项目中用；通过`FromPEM`、`ToPEM` 和`FromXML`、`ToXML`这两对方法，可以实现PEM`PKCS#1`、`PKCS#8`相互转换，PEM、XML的相互转换。
 
-注：openssl `RSAPublicKey_out`导出的公钥，字节码内并不带[OID](http://www.oid-info.com/get/1.2.840.113549.1.1.1)（目测是因为不带OID所以openssl自己都不支持用这个公钥来加密数据），RSA_PEM支持此格式公钥的导入，但不提供此种格式公钥的导出。
+注：`openssl rsa -in 私钥文件 -pubout`导出的是PKCS#8格式公钥（用的比较多），`openssl rsa -pubin -in PKCS#8公钥文件 -RSAPublicKey_out`导出的是PKCS#1格式公钥（用的比较少）。
+
 
 ### 构造方法
 
@@ -61,7 +62,11 @@ boolean：**hasPrivate()**(是否包含私钥)
 
 **RSAPrivateKey getRSAPrivateKey()**：得到私钥Java对象，如果此PEM不含私钥会直接报错。
 
-**String ToPEM(boolean convertToPublic, boolean usePKCS8)**：将RSA中的密钥对转换成PEM格式，usePKCS8=false时返回PKCS#1格式，否则返回PKCS#8格式，如果convertToPublic含私钥的RSA将只返回公钥，仅含公钥的RSA不受影响。
+**String ToPEM(boolean convertToPublic, boolean privateUsePKCS8, boolean publicUsePKCS8)**：将RSA中的密钥对转换成PEM格式。convertToPublic：等于true时含私钥的RSA将只返回公钥，仅含公钥的RSA不受影响 。**privateUsePKCS8**：私钥的返回格式，等于true时返回PKCS#8格式（`-----BEGIN PRIVATE KEY-----`），否则返回PKCS#1格式（`-----BEGIN RSA PRIVATE KEY-----`），返回公钥时此参数无效；两种格式使用都比较常见。**publicUsePKCS8**：公钥的返回格式，等于true时返回PKCS#8格式（`-----BEGIN PUBLIC KEY-----`），否则返回PKCS#1格式（`-----BEGIN RSA PUBLIC KEY-----`），返回私钥时此参数无效；一般用的多的是true PKCS#8格式公钥，PKCS#1格式公钥似乎比较少见。
+
+**String ToPEM_PKCS1(boolean convertToPublic)**：ToPEM方法的简化写法，不管公钥还是私钥都返回PKCS#1格式；似乎导出PKCS#1公钥用的比较少，PKCS#8的公钥用的多些，私钥#1#8都差不多。
+
+**String ToPEM_PKCS8(boolean convertToPublic)**：ToPEM方法的简化写法，不管公钥还是私钥都返回PKCS#8格式。
 
 **String ToXML(boolean convertToPublic)**：将RSA中的密钥对转换成XML格式，如果convertToPublic含私钥的RSA将只返回公钥，仅含公钥的RSA不受影响。
 
@@ -121,7 +126,7 @@ RSA工具（非开源）：
 
 请移步到[RSA-csharp](https://github.com/xiangyuecn/RSA-csharp)阅读知识库部分，知识库内包含了详细的PEM格式解析，和部分ASN.1语法；然后逐字节分解PEM字节码教程。
 
-本库的诞生是由于微信付款到银行卡的功能，然后微信提供的RSA公钥接口返回的公钥和openssl -RSAPublicKey_out生成的一样，公钥 PEM 字节码内没有OID（目测是因为不带 OID 所以openssl 自己都不支持用这个公钥来加密数据）,这种是不是PKCS#1 格式不清楚，正反都是难用，所以就撸了一个java版转换代码，也不是难事以前撸过C#的，copy C#的代码过来改改就上线使用了。
+本库的诞生是由于微信付款到银行卡的功能，然后微信提供的RSA公钥接口返回的公钥和openssl -RSAPublicKey_out生成的一样，公钥 PEM 字节码内没有OID（目测是因为不带 OID 所以openssl 自己都不支持用这个公钥来加密数据）,这种是不是PKCS#1 格式不清楚(目测是，大部分文章也说是)，正反都是难用，所以就撸了一个java版转换代码，也不是难事以前撸过C#的，copy C#的代码过来改改就上线使用了。
 
 本库的代码整理未使用IDE，RSA_PEM.java copy过来的，Test.java直接用的文本编辑器编写，*.java文件全部丢到根目录，没有创建包名目录，源码直接根目录裸奔，简单粗暴；这样的项目结构肉眼看去也算是简洁，也方便copy文件使用。
 

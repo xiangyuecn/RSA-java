@@ -214,7 +214,7 @@ public class RSA_PEM {
 			//读取数据总长度
 			readLen(0x30, data, idx);
 			
-			//看看有没有oid
+			//检测PKCS8
 			int[] idx2 = new int[] {idx[0]};
 			if (eq(_SeqOID, data, idx)) {
 				//读取1长度
@@ -359,11 +359,29 @@ public class RSA_PEM {
 	
 	
 	/***
-	 * 将RSA中的密钥对转换成PEM格式
-	 * ，usePKCS8=false时返回PKCS#1格式，否则返回PKCS#8格式
-	 * ，如果convertToPublic含私钥的RSA将只返回公钥，仅含公钥的RSA不受影响
+	 * 将RSA中的密钥对转换成PEM PKCS#8格式
+	 * 。convertToPublic：等于true时含私钥的RSA将只返回公钥，仅含公钥的RSA不受影响
+	 * 。公钥如：-----BEGIN RSA PUBLIC KEY-----，私钥如：-----BEGIN RSA PRIVATE KEY-----
+	 * 。似乎导出PKCS#1公钥用的比较少，PKCS#8的公钥用的多些，私钥#1#8都差不多
 	 */
-	public String ToPEM(boolean convertToPublic, boolean usePKCS8) throws Exception {
+	public String ToPEM_PKCS1(boolean convertToPublic) throws Exception {
+		return ToPEM(convertToPublic, false, false);
+	}
+	/***
+	 * 将RSA中的密钥对转换成PEM PKCS#8格式
+	 * 。convertToPublic：等于true时含私钥的RSA将只返回公钥，仅含公钥的RSA不受影响
+	 * 。公钥如：-----BEGIN PUBLIC KEY-----，私钥如：-----BEGIN PRIVATE KEY-----
+	 */
+	public String ToPEM_PKCS8(boolean convertToPublic) throws Exception {
+		return ToPEM(convertToPublic, true, true);
+	}
+	/***
+	 * 将RSA中的密钥对转换成PEM格式
+	 * 。convertToPublic：等于true时含私钥的RSA将只返回公钥，仅含公钥的RSA不受影响
+	 * 。privateUsePKCS8：私钥的返回格式，等于true时返回PKCS#8格式（-----BEGIN PRIVATE KEY-----），否则返回PKCS#1格式（-----BEGIN RSA PRIVATE KEY-----），返回公钥时此参数无效；两种格式使用都比较常见
+	 * 。publicUsePKCS8：公钥的返回格式，等于true时返回PKCS#8格式（-----BEGIN PUBLIC KEY-----），否则返回PKCS#1格式（-----BEGIN RSA PUBLIC KEY-----），返回私钥时此参数无效；一般用的多的是true PKCS#8格式公钥，PKCS#1格式公钥似乎比较少见
+	 */
+	public String ToPEM(boolean convertToPublic, boolean privateUsePKCS8, boolean publicUsePKCS8) throws Exception {
 		//https://www.jianshu.com/p/25803dd9527d
 		//https://www.cnblogs.com/ylz8401/p/8443819.html
 		//https://blog.csdn.net/jiayanhui2877/article/details/47187077
@@ -380,18 +398,22 @@ public class RSA_PEM {
 			ms.write(0x30);
 			int index1 = ms.size();
 
-			//固定内容
-			// encoded OID sequence for PKCS #1 rsaEncryption szOID_RSA_RSA = "1.2.840.113549.1.1.1"
-			ms.write(_SeqOID);
+			//PKCS8 多一段数据
+			int index2 = -1, index3 = -1;
+			if (publicUsePKCS8) {
+				//固定内容
+				// encoded OID sequence for PKCS #1 rsaEncryption szOID_RSA_RSA = "1.2.840.113549.1.1.1"
+				ms.write(_SeqOID);
 
-			//从0x00开始的后续长度
-			ms.write(0x03);
-			int index2 = ms.size();
-			ms.write(0x00);
+				//从0x00开始的后续长度
+				ms.write(0x03);
+				index2 = ms.size();
+				ms.write(0x00);
 
-			//后续内容长度
-			ms.write(0x30);
-			int index3 = ms.size();
+				//后续内容长度
+				ms.write(0x30);
+				index3 = ms.size();
+			}
 
 			//写入Modulus
 			writeBlock(Key_Modulus, ms);
@@ -403,12 +425,18 @@ public class RSA_PEM {
 			//计算空缺的长度
 			byte[] byts = ms.toByteArray();
 
-			byts = writeLen(index3, byts, ms);
-			byts = writeLen(index2, byts, ms);
+			if (index2 != -1) {
+				byts = writeLen(index3, byts, ms);
+				byts = writeLen(index2, byts, ms);
+			}
 			byts = writeLen(index1, byts, ms);
 
 
-			return "-----BEGIN PUBLIC KEY-----\n" + TextBreak(Base64.getEncoder().encodeToString(byts), 64) + "\n-----END PUBLIC KEY-----";
+			String flag = " PUBLIC KEY";
+			if (!publicUsePKCS8) {
+				flag = " RSA" + flag;
+			}
+			return "-----BEGIN" + flag + "-----\n" + TextBreak(Base64.getEncoder().encodeToString(byts), 64) + "\n-----END" + flag + "-----";
 		} else {
 			/****生成私钥****/
 			
@@ -421,7 +449,7 @@ public class RSA_PEM {
 
 			//PKCS8 多一段数据
 			int index2 = -1, index3 = -1;
-			if (usePKCS8) {
+			if (privateUsePKCS8) {
 				//固定内容
 				ms.write(_SeqOID);
 
@@ -459,7 +487,7 @@ public class RSA_PEM {
 
 
 			String flag = " PRIVATE KEY";
-			if (!usePKCS8) {
+			if (!privateUsePKCS8) {
 				flag = " RSA" + flag;
 			}
 			return "-----BEGIN" + flag + "-----\n" + TextBreak(Base64.getEncoder().encodeToString(byts), 64) + "\n-----END" + flag + "-----";
