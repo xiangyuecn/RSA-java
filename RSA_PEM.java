@@ -59,13 +59,14 @@ public class RSA_PEM {
 	public RSA_PEM(byte[] modulus, byte[] exponent, byte[] d, byte[] p, byte[] q, byte[] dp, byte[] dq, byte[] inverseQ) {
 		Key_Modulus=modulus;
 		Key_Exponent=exponent;
-		Key_D=d;
+		Key_D=BigL(d, modulus.length);
 		
-		Val_P=p;
-		Val_Q=q;
-		Val_DP=dp;
-		Val_DQ=dq;
-		Val_InverseQ=inverseQ;
+		int keyLen = modulus.length / 2;
+		Val_P=BigL(p, keyLen);
+		Val_Q=BigL(q, keyLen);
+		Val_DP=BigL(dp, keyLen);
+		Val_DQ=BigL(dq, keyLen);
+		Val_InverseQ=BigL(inverseQ, keyLen);
 	}
 	/***
 	 * 通过公钥指数和私钥指数构造一个PEM，会反推计算出P、Q但和原始生成密钥的P、Q极小可能相同
@@ -79,7 +80,7 @@ public class RSA_PEM {
 		Key_Exponent=exponent;//publicExponent
 		
 		if(dOrNull!=null) {
-			Key_D=dOrNull;//privateExponent
+			Key_D=BigL(dOrNull, modulus.length);//privateExponent
 			
 			//反推P、Q
 			BigInteger n = BigX(modulus);
@@ -96,11 +97,12 @@ public class RSA_PEM {
 			BigInteger exp2 = d.mod(q.subtract(BigInteger.ONE));
 			BigInteger coeff = q.modInverse(p);
 			
-			Val_P=BigB(p);//prime1
-			Val_Q=BigB(q);//prime2
-			Val_DP=BigB(exp1);//exponent1
-			Val_DQ=BigB(exp2);//exponent2
-			Val_InverseQ=BigB(coeff);//coefficient
+			int keyLen = modulus.length / 2;
+			Val_P=BigL(BigB(p), keyLen);//prime1
+			Val_Q=BigL(BigB(q), keyLen);//prime2
+			Val_DP=BigL(BigB(exp1), keyLen);//exponent1
+			Val_DQ=BigL(BigB(exp2), keyLen);//exponent2
+			Val_InverseQ=BigL(BigB(coeff), keyLen);//coefficient
 		}
 	}
 	
@@ -145,6 +147,15 @@ public class RSA_PEM {
 			val=c;
 		}
 		return val;
+	}
+	/**某些密钥参数可能会少一位（32个byte只有31个，目测是密钥生成器的问题，只在c#生成的密钥中发现这种参数，java中生成的密钥没有这种现象），直接修正一下就行；这个问题与BigB有本质区别，不能动BigB**/
+	static public byte[] BigL(byte[] bytes, int keyLen) {
+		if (keyLen - bytes.length == 1) {
+			byte[] c = new byte[bytes.length + 1];
+			System.arraycopy(bytes, 0, c, 1, bytes.length);
+			bytes = c;
+		}
+		return bytes;
 	}
 	/**
 	 * 由n e d 反推 P Q 
@@ -260,12 +271,14 @@ public class RSA_PEM {
 			//读取数据
 			param.Key_Modulus = readBlock(data, idx);
 			param.Key_Exponent = readBlock(data, idx);
-			param.Key_D = readBlock(data, idx);
-			param.Val_P = readBlock(data, idx);
-			param.Val_Q = readBlock(data, idx);
-			param.Val_DP = readBlock(data, idx);
-			param.Val_DQ = readBlock(data, idx);
-			param.Val_InverseQ = readBlock(data, idx);
+			int keyLen = param.Key_Modulus.length;
+			param.Key_D = BigL(readBlock(data, idx), keyLen);
+			keyLen = keyLen / 2;
+			param.Val_P = BigL(readBlock(data, idx), keyLen);
+			param.Val_Q = BigL(readBlock(data, idx), keyLen);
+			param.Val_DP = BigL(readBlock(data, idx), keyLen);
+			param.Val_DQ = BigL(readBlock(data, idx), keyLen);
+			param.Val_InverseQ = BigL(readBlock(data, idx), keyLen);
 		} else {
 			throw new Exception("pem需要BEGIN END标头");
 		}

@@ -128,6 +128,7 @@ public class Test {
 		System.out.println("◆◆◆◆◆◆◆◆◆◆◆◆ RSA测试 ◆◆◆◆◆◆◆◆◆◆◆◆");
 		System.out.println("---------------------------------------------------------");
 
+		//for(int i=0;i<1000;i++){System.out.println("第"+i+"次>>>>>"); RSATest(); }
 		RSATest();
 
 		System.out.println("-------------------------------------------------------------");
