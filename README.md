@@ -36,6 +36,13 @@
 注：`openssl rsa -in 私钥文件 -pubout`导出的是PKCS#8格式公钥（用的比较多），`openssl rsa -pubin -in PKCS#8公钥文件 -RSAPublicKey_out`导出的是PKCS#1格式公钥（用的比较少）。
 
 
+### 静态方法
+
+**static RSA_PEM FromPEM(String pem)**：用PEM格式密钥对创建RSA，支持PKCS#1、PKCS#8格式的PEM，出错将会抛出异常。pem格式如：`-----BEGIN XXX KEY-----....-----END XXX KEY-----`。
+
+**static RSA_PEM FromXML(String xml)**：将XML格式密钥转成PEM，支持公钥xml、私钥xml，出错将会抛出异常。xml格式如：`<RSAKeyValue><Modulus>....</RSAKeyValue>`。
+
+
 ### 构造方法
 
 **RSA_PEM(RSAPublicKey publicKey, RSAPrivateKey privateKeyOrNull)**：通过RSA中的公钥和私钥构造一个PEM，私钥可以不提供，导出的PEM就只包含公钥。
@@ -69,13 +76,6 @@ boolean：**hasPrivate()**(是否包含私钥)
 **String ToPEM_PKCS8(boolean convertToPublic)**：ToPEM方法的简化写法，不管公钥还是私钥都返回PKCS#8格式。
 
 **String ToXML(boolean convertToPublic)**：将RSA中的密钥对转换成XML格式，如果convertToPublic含私钥的RSA将只返回公钥，仅含公钥的RSA不受影响。
-
-
-### 静态方法
-
-**static RSA_PEM FromPEM(String pem)**：用PEM格式密钥对创建RSA，支持PKCS#1、PKCS#8格式的PEM，出错将会抛出异常。pem格式如：`-----BEGIN XXX KEY-----....-----END XXX KEY-----`。
-
-**static RSA_PEM FromXML(String xml)**：将XML格式密钥转成PEM，支持公钥xml、私钥xml，出错将会抛出异常。
 
 
 ## 如何加密、解密、签名、校验
