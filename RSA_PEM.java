@@ -28,15 +28,15 @@ public class RSA_PEM {
 	public byte[] Key_D;
 	
 	//以下参数只有私钥才有 https://docs.microsoft.com/zh-cn/dotnet/api/system.security.cryptography.rsaparameters?redirectedfrom=MSDN&view=netframework-4.8
-	/**prime1**/
+	/**prime1，只有私钥的时候才有**/
 	public byte[] Val_P;
-	/**prime2**/
+	/**prime2，只有私钥的时候才有**/
 	public byte[] Val_Q;
-	/**exponent1**/
+	/**exponent1，只有私钥的时候才有**/
 	public byte[] Val_DP;
-	/**exponent2**/
+	/**exponent2，只有私钥的时候才有**/
 	public byte[] Val_DQ;
-	/**coefficient**/
+	/**coefficient，只有私钥的时候才有**/
 	public byte[] Val_InverseQ;
 	
 	private RSA_PEM() {}
@@ -59,14 +59,17 @@ public class RSA_PEM {
 	public RSA_PEM(byte[] modulus, byte[] exponent, byte[] d, byte[] p, byte[] q, byte[] dp, byte[] dq, byte[] inverseQ) {
 		Key_Modulus=modulus;
 		Key_Exponent=exponent;
-		Key_D=BigL(d, modulus.length);
 		
-		int keyLen = modulus.length / 2;
-		Val_P=BigL(p, keyLen);
-		Val_Q=BigL(q, keyLen);
-		Val_DP=BigL(dp, keyLen);
-		Val_DQ=BigL(dq, keyLen);
-		Val_InverseQ=BigL(inverseQ, keyLen);
+		if(d!=null){
+			Key_D=BigL(d, modulus.length);
+			
+			int keyLen = modulus.length / 2;
+			Val_P=BigL(p, keyLen);
+			Val_Q=BigL(q, keyLen);
+			Val_DP=BigL(dp, keyLen);
+			Val_DQ=BigL(dq, keyLen);
+			Val_InverseQ=BigL(inverseQ, keyLen);
+		}
 	}
 	/***
 	 * 通过公钥指数和私钥指数构造一个PEM，会反推计算出P、Q但和原始生成密钥的P、Q极小可能相同
