@@ -8,6 +8,7 @@ import java.security.interfaces.RSAPublicKey;
 import java.security.spec.RSAPrivateKeySpec;
 import java.security.spec.RSAPublicKeySpec;
 import java.util.Base64;
+import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -173,7 +174,7 @@ public class RSA_PEM {
 		long now=System.currentTimeMillis();
 		for (int aInt = 2; true; aInt++) {
 			if(aInt%10==0 && System.currentTimeMillis()-now>3000) {
-				throw new RuntimeException("推算RSA.P超时");//测试最多循环2次，1024位的速度很快 8ms
+				throw new RuntimeException(T("推算RSA.P超时", "Estimated RSA.P timeout"));//测试最多循环2次，1024位的速度很快 8ms
 			}
 			
 			BigInteger aPow = BigInteger.valueOf(aInt).modPow(t, n);
@@ -213,7 +214,7 @@ public class RSA_PEM {
 		String base64 = _PEMCode.matcher(pem).replaceAll("");
 		byte[] dataX = Base64.getDecoder().decode(base64);//java byte是正负数
 		if (dataX == null) {
-			throw new Exception("PEM内容无效");
+			throw new Exception(T("PEM内容无效", "Invalid PEM content"));
 		}
 		short[] data=new short[dataX.length];//转成正整数的bytes数组，不然byte是负数难搞
 		for(int i=0;i<dataX.length;i++) {
@@ -252,7 +253,7 @@ public class RSA_PEM {
 
 			//读取版本号
 			if (!eq(_Ver, data, idx)) {
-				throw new Exception("PEM未知版本");
+				throw new Exception(T("PEM未知版本", "Unknown PEM version"));
 			}
 
 			//检测PKCS8
@@ -265,7 +266,7 @@ public class RSA_PEM {
 
 				//读取版本号
 				if (!eq(_Ver, data, idx)) {
-					throw new Exception("PEM版本无效");
+					throw new Exception(T("PEM版本无效", "Invalid PEM version"));
 				}
 			} else {
 				idx = idx2;
@@ -283,7 +284,7 @@ public class RSA_PEM {
 			param.Val_DQ = BigL(readBlock(data, idx), keyLen);
 			param.Val_InverseQ = BigL(readBlock(data, idx), keyLen);
 		} else {
-			throw new Exception("pem需要BEGIN END标头");
+			throw new Exception(T("pem需要BEGIN END标头", "pem requires BEGIN END header"));
 		}
 		
 		return param;
@@ -316,7 +317,7 @@ public class RSA_PEM {
 					return data[idx++];
 				}
 			}
-			throw new Exception("PEM未能提取到数据");
+			throw new Exception(T("PEM未能提取到数据", "Failed to extract data from PEM"));
 		}finally {
 			idxO[0]=idx;
 		}
@@ -370,6 +371,25 @@ public class RSA_PEM {
 	
 	
 	
+	/***
+	 * 将当前PEM中的密钥对复制出一个新的PEM对象
+	 * 。convertToPublic：等于true时含私钥的PEM将只返回公钥，仅含公钥的PEM不受影响
+	 */
+	public RSA_PEM CopyToNew(boolean convertToPublic) {
+		if (convertToPublic) {
+			return new RSA_PEM(Key_Modulus, Key_Exponent, null, null, null, null, null, null);
+		}
+		return new RSA_PEM(Key_Modulus, Key_Exponent, Key_D, Val_P, Val_Q, Val_DP, Val_DQ, Val_InverseQ);
+	}
+	/***
+	 * 【不安全、不建议使用】对调交换公钥指数（Key_Exponent）和私钥指数（Key_D）：把公钥当私钥使用（new.Key_D=this.Key_Exponent）、私钥当公钥使用（new.Key_Exponent=this.Key_D），返回一个新PEM对象；比如用于：私钥加密、公钥解密，这是非常规的用法
+	 * 。当前对象必须含私钥，否则无法交换会直接抛异常
+	 * 。注意：把公钥当私钥使用是非常不安全的，因为绝大部分生成的密钥的公钥指数为 0x10001（AQAB），太容易被猜测到，无法作为真正意义上的私钥
+	 */
+	public RSA_PEM SwapKey_Exponent_D__Unsafe() throws Exception {
+		if(Key_D==null) throw new Exception(T("SwapKey只支持私钥", "SwapKey only supports private keys"));
+		return new RSA_PEM(Key_Modulus, Key_D, Key_Exponent);
+	}
 	
 	
 	
@@ -398,6 +418,28 @@ public class RSA_PEM {
 	 * 。publicUsePKCS8：公钥的返回格式，等于true时返回PKCS#8格式（-----BEGIN PUBLIC KEY-----），否则返回PKCS#1格式（-----BEGIN RSA PUBLIC KEY-----），返回私钥时此参数无效；一般用的多的是true PKCS#8格式公钥，PKCS#1格式公钥似乎比较少见
 	 */
 	public String ToPEM(boolean convertToPublic, boolean privateUsePKCS8, boolean publicUsePKCS8) throws Exception {
+		byte[] der = ToDER(convertToPublic, privateUsePKCS8, publicUsePKCS8);
+		if (this.Key_D==null || convertToPublic) {
+			String flag = " PUBLIC KEY";
+			if (!publicUsePKCS8) {
+				flag = " RSA" + flag;
+			}
+			return "-----BEGIN" + flag + "-----\n" + TextBreak(Base64.getEncoder().encodeToString(der), 64) + "\n-----END" + flag + "-----";
+		} else {
+			String flag = " PRIVATE KEY";
+			if (!privateUsePKCS8) {
+				flag = " RSA" + flag;
+			}
+			return "-----BEGIN" + flag + "-----\n" + TextBreak(Base64.getEncoder().encodeToString(der), 64) + "\n-----END" + flag + "-----";
+		}
+	}
+	/***
+	 * 将RSA中的密钥对转换成DER格式，DER格式为PEM中的Base64文本编码前的二进制数据
+	 * 。convertToPublic：等于true时含私钥的RSA将只返回公钥，仅含公钥的RSA不受影响
+	 * 。privateUsePKCS8：私钥的返回格式，等于true时返回PKCS#8格式，否则返回PKCS#1格式，返回公钥时此参数无效；两种格式使用都比较常见
+	 * 。publicUsePKCS8：公钥的返回格式，等于true时返回PKCS#8格式，否则返回PKCS#1格式，返回私钥时此参数无效；一般用的多的是true PKCS#8格式公钥，PKCS#1格式似乎比较少见公钥
+	 */
+	public byte[] ToDER(boolean convertToPublic, boolean privateUsePKCS8, boolean publicUsePKCS8) throws Exception {
 		//https://www.jianshu.com/p/25803dd9527d
 		//https://www.cnblogs.com/ylz8401/p/8443819.html
 		//https://blog.csdn.net/jiayanhui2877/article/details/47187077
@@ -446,13 +488,8 @@ public class RSA_PEM {
 				byts = writeLen(index2, byts, ms);
 			}
 			byts = writeLen(index1, byts, ms);
-
-
-			String flag = " PUBLIC KEY";
-			if (!publicUsePKCS8) {
-				flag = " RSA" + flag;
-			}
-			return "-----BEGIN" + flag + "-----\n" + TextBreak(Base64.getEncoder().encodeToString(byts), 64) + "\n-----END" + flag + "-----";
+			
+			return byts;
 		} else {
 			/****生成私钥****/
 			
@@ -500,13 +537,8 @@ public class RSA_PEM {
 				byts = writeLen(index2, byts, ms);
 			}
 			byts = writeLen(index1, byts, ms);
-
-
-			String flag = " PRIVATE KEY";
-			if (!privateUsePKCS8) {
-				flag = " RSA" + flag;
-			}
-			return "-----BEGIN" + flag + "-----\n" + TextBreak(Base64.getEncoder().encodeToString(byts), 64) + "\n-----END" + flag + "-----";
+			
+			return byts;
 		}
 	}
 	/**写入一个长度字节码**/
@@ -592,7 +624,7 @@ public class RSA_PEM {
 		
 		Matcher xmlM=xmlExp.matcher(xml);
 		if(!xmlM.find()) {
-			throw new Exception("XML内容不符合要求");
+			throw new Exception(T("XML内容不符合要求", "XML content does not meet requirements"));
 		}
 		
 		Matcher tagM=xmlTagExp.matcher(xmlM.group(1));
@@ -615,7 +647,7 @@ public class RSA_PEM {
 		}
 		
 		if(rtv.Key_Modulus==null || rtv.Key_Exponent==null) {
-			throw new Exception("XML公钥丢失");
+			throw new Exception(T("XML公钥丢失", "Public key in XML is missing"));
 		}
 		if(rtv.Key_D!=null) {
 			if(rtv.Val_P==null || rtv.Val_Q==null || rtv.Val_DP==null || rtv.Val_DQ==null || rtv.Val_InverseQ==null) {
@@ -658,4 +690,35 @@ public class RSA_PEM {
 		str.append("</RSAKeyValue>");
 		return str.toString();
 	}
+	
+	
+	
+	/***
+	 * 简版多语言支持，根据当前语言{@link #Lang()}返回中文或英文
+	 */
+	static public String T(String zh, String en) {
+		return "zh".equals(Lang()) ? zh : en;
+	}
+	static private String _lang;
+	/**
+	 * 简版多语言支持，取值：zh（简体中文）、en（English-US），默认根据系统取值
+	 */
+	static public String Lang() {
+		if(_lang==null) {
+			String locale=Locale.getDefault().toString().replace('_', '-').toLowerCase();
+			if(Pattern.compile("\\b(zh|cn)\\b").matcher(locale).find()) {
+				_lang = "zh";
+			} else {
+				_lang = "en";
+			}
+		}
+		return _lang;
+	}
+	/**
+	 * 简版多语言支持，可设置值：zh（简体中文）、en（English-US）
+	 */
+	static public void SetLang(String lang) {
+		_lang=lang;
+	}
+	
 }
