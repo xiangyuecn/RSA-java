@@ -29,7 +29,7 @@ echo.
 
 
 set jarPath=
-for /f "delims=" %%f in ('dir /b target\rsa-java.lib-*.jar') do set jarPath=target\%%f
+for /f "delims=" %%f in ('dir /b target\rsa-java.lib-*.jar 2^>nul') do set jarPath=target\%%f
 if "%jarPath%"=="" goto jarPath_End
 	call:echo2 "检测到已打包的jar：%jarPath%，是否使用此jar参与测试？(Y/N) N  " "A packaged jar is detected: %jarPath%, do you want to use this jar to participate in the test? (Y/N) N"
 	set step=&set /p step=^> 
