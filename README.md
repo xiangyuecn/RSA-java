@@ -69,8 +69,10 @@ boolean isVerify=rsa.Verify("PKCS1+SHA1", sign, "测试123");
 String pemTxt=rsa.ToPEM(false).ToPEM_PKCS8(false);
 
 //非常规的（不安全、不建议使用）：私钥加密、公钥解密，公钥签名、私钥验证
-RSA_Util rsa2=rsa.SwapKey_Exponent_D__Unsafe();
-//... rsa2.Encrypt rsa2.Decrypt rsa2.Sign rsa2.Verify
+RSA_Util rsaS_Private=rsa.SwapKey_Exponent_D__Unsafe();
+RSA_Util rsaS_Public=new RSA_Util(rsa.ToPEM(true)).SwapKey_Exponent_D__Unsafe();
+//... rsaS_Private.Encrypt rsaS_Public.Decrypt
+//... rsaS_Public.Sign rsaS_Private.Verify
 
 System.out.println(pemTxt+"\n"+enTxt+"\n"+deTxt+"\n"+sign+"\n"+isVerify);
 //****更多的实例，请阅读 Test.java****
@@ -276,7 +278,7 @@ PSS+MD5     |MD5withRSA/PSS|×|√
 
 `RSA_PEM` **ToPEM(boolean convertToPublic)**：导出RSA_PEM对象（然后可以通过RSA_PEM.ToPEM方法导出PEM文本），如果convertToPublic含私钥的RSA将只返回公钥，仅含公钥的RSA不受影响。
 
-`RSA_Util` **SwapKey_Exponent_D__Unsafe()**：【不安全、不建议使用】对调交换公钥指数（Key_Exponent）和私钥指数（Key_D）：把公钥当私钥使用（new.Key_D=this.Key_Exponent）、私钥当公钥使用（new.Key_Exponent=this.Key_D），返回一个新RSA对象；比如用于：私钥加密、公钥解密，这是非常规的用法。当前对象必须含私钥，否则无法交换会直接抛异常。注意：把公钥当私钥使用是非常不安全的，因为绝大部分生成的密钥的公钥指数为 0x10001（AQAB），太容易被猜测到，无法作为真正意义上的私钥。
+`RSA_Util` **SwapKey_Exponent_D__Unsafe()**：【不安全、不建议使用】对调交换公钥指数（Key_Exponent）和私钥指数（Key_D）：把公钥当私钥使用（new.Key_D=this.Key_Exponent）、私钥当公钥使用（new.Key_Exponent=this.Key_D），返回一个新RSA对象；比如用于：私钥加密、公钥解密，这是非常规的用法。当前密钥如果是公钥，将不会发生对调，返回的新RSA将允许用公钥进行解密和签名操作。注意：把公钥当私钥使用是非常不安全的，因为绝大部分生成的密钥的公钥指数为 0x10001（AQAB），太容易被猜测到，无法作为真正意义上的私钥。部分私钥加密实现中，比如Java自带的RSA，使用非NoPadding填充方式时，用私钥对象进行加密可能会采用EMSA-PKCS1-v1_5填充方式（用私钥指数构造成公钥对象无此问题），因此在不同程序之间互通时，可能需要自行使用对应填充算法先对数据进行填充，然后再用NoPadding填充方式进行加密（解密也按NoPadding填充进行解密，然后去除填充数据）。
 
 `String` **Encrypt(String padding, String str)**：加密任意长度字符串（utf-8）返回base64，出错抛异常。本方法线程安全。padding指定填充方式，如：PKCS1、OAEP+SHA256大写，参考上面的加密填充方式表格，使用空值时默认为PKCS1。
 

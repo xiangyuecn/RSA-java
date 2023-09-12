@@ -2,6 +2,7 @@ package com.github.xiangyuecn.rsajava;
 
 import java.io.ByteArrayOutputStream;
 import java.security.Key;
+import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.MessageDigest;
@@ -14,6 +15,7 @@ import java.security.interfaces.RSAPublicKey;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.MGF1ParameterSpec;
 import java.security.spec.PSSParameterSpec;
+import java.security.spec.RSAPrivateKeySpec;
 import java.util.Base64;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -42,12 +44,22 @@ public class RSA_Util {
 		return new RSA_PEM(publicKey, convertToPublic?null:privateKey);
 	}
 	/***
-	 * 【不安全、不建议使用】对调交换公钥指数（Key_Exponent）和私钥指数（Key_D）：把公钥当私钥使用（new.Key_D=this.Key_Exponent）、私钥当公钥使用（new.Key_Exponent=this.Key_D），返回一个新RSA对象；比如用于：私钥加密、公钥解密，这是非常规的用法
-	 * 。当前对象必须含私钥，否则无法交换会直接抛异常
-	 * 。注意：把公钥当私钥使用是非常不安全的，因为绝大部分生成的密钥的公钥指数为 0x10001（AQAB），太容易被猜测到，无法作为真正意义上的私钥
+	 * 【不安全、不建议使用】对调交换公钥指数（Key_Exponent）和私钥指数（Key_D）：把公钥当私钥使用（new.Key_D=this.Key_Exponent）、私钥当公钥使用（new.Key_Exponent=this.Key_D），返回一个新RSA对象；比如用于：私钥加密、公钥解密，这是非常规的用法。
+	 * <br/><br/>当前密钥如果是公钥，将不会发生对调，返回的新RSA将允许用公钥进行解密和签名操作。
+	 * <br/><br/>注意：把公钥当私钥使用是非常不安全的，因为绝大部分生成的密钥的公钥指数为 0x10001（AQAB），太容易被猜测到，无法作为真正意义上的私钥。
+	 * <br/><br/>部分私钥加密实现中，比如Java自带的RSA，使用非NoPadding填充方式时，用私钥对象进行加密可能会采用EMSA-PKCS1-v1_5填充方式（用私钥指数构造成公钥对象无此问题），因此在不同程序之间互通时，可能需要自行使用对应填充算法先对数据进行填充，然后再用NoPadding填充方式进行加密（解密也按NoPadding填充进行解密，然后去除填充数据）。
 	 */
 	public RSA_Util SwapKey_Exponent_D__Unsafe() throws Exception {
-		return new RSA_Util(ToPEM(false).SwapKey_Exponent_D__Unsafe());
+		RSA_PEM pem=ToPEM(false);
+		if(pem.Key_D==null) {
+			RSA_Util rsa=new RSA_Util(pem);
+			//公钥当成私钥使用
+			RSAPrivateKeySpec spec=new RSAPrivateKeySpec(rsa.publicKey.getModulus(), rsa.publicKey.getPublicExponent());
+			KeyFactory factory=KeyFactory.getInstance("RSA");
+			rsa.allowKeyDNull=(RSAPrivateKey)factory.generatePrivate(spec);
+			return rsa;
+		}
+		return new RSA_Util(pem.SwapKey_Exponent_D__Unsafe());
 	}
 	
 	
@@ -362,7 +374,7 @@ public class RSA_Util {
 
 	private Cipher Cipher_getInstance(boolean enc, String ctype, AlgorithmParameterSpec[] params)  throws Exception {
 		int mode=enc?Cipher.ENCRYPT_MODE:Cipher.DECRYPT_MODE;
-		Key key=enc?publicKey:privateKey;
+		Key key=enc?publicKey:usePrivateKey();
 		Cipher dec;
 		
 		if(BcProvider!=null) {
@@ -444,7 +456,7 @@ public class RSA_Util {
 	 */
 	public byte[] Sign(String hash, byte[] data) throws Exception {
 		Signature signature=Signature_getInstance(hash);
-		signature.initSign(privateKey);
+		signature.initSign(usePrivateKey());
 		signature.update(data);
 		return signature.sign();
 	}
@@ -598,7 +610,9 @@ public class RSA_Util {
 			pem = RSA_PEM.FromPEM(pemOrXML);
 		}
 		publicKey=pem.getRSAPublicKey();
-		privateKey=pem.getRSAPrivateKey();
+		if(pem.hasPrivate()) {
+			privateKey=pem.getRSAPrivateKey();
+		}
 		keySize=pem.keySize();
 	}
 	/**
@@ -606,8 +620,19 @@ public class RSA_Util {
 	 */
 	public RSA_Util(RSA_PEM pem) throws Exception {
 		publicKey=pem.getRSAPublicKey();
-		privateKey=pem.getRSAPrivateKey();
+		if(pem.hasPrivate()) {
+			privateKey=pem.getRSAPrivateKey();
+		}
 		keySize=pem.keySize();
+	}
+	
+	
+	private RSAPrivateKey allowKeyDNull;
+	/** 如果未提供私钥，将用SwapKey提供的公钥进行解密、签名 **/
+	private RSAPrivateKey usePrivateKey() throws Exception {
+		if(privateKey != null) return privateKey;
+		if(allowKeyDNull != null) return allowKeyDNull;
+		throw new Exception(T("当前是公钥，常规情况下不允许进行Decrypt或Sign操作，可以调用SwapKey方法来允许进行此操作", "Currently it is a public key. Decrypt or Sign operations are not allowed under normal circumstances. You can call the SwapKey method to allow this operation."));
 	}
 	
 	

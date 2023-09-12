@@ -137,14 +137,15 @@ public class Test {
 			
 			//对调交换公钥私钥
 			ST("【Unsafe|对调公钥私钥，私钥加密公钥解密】", "[ Unsafe | Swap the public key and private key, private key encryption and public key decryption ]");
-			rsa4=rsa.SwapKey_Exponent_D__Unsafe();
-			String en4=rsa4.Encrypt("PKCS1", str);
-			String sign4=rsa4.Sign("SHA1", str);
-			de=rsa4.Decrypt("PKCS1",en4);
+			RSA_Util rsaPri=rsa.SwapKey_Exponent_D__Unsafe();
+			RSA_Util rsaPub=new RSA_Util(rsa.ToPEM(true)).SwapKey_Exponent_D__Unsafe();
+			String enPri=rsaPri.Encrypt("PKCS1", str);
+			String signPub=rsaPub.Sign("SHA1", str);
+			de=rsaPub.Decrypt("PKCS1",enPri);
 			AssertMsg(de, de.equals(str));
-			AssertMsg(T("校验 OK","Verify OK"), rsa4.Verify("SHA1", sign4, str));
+			AssertMsg(T("校验 OK","Verify OK"), rsaPri.Verify("SHA1", signPub, str));
 			
-			rsa4 = rsa4.SwapKey_Exponent_D__Unsafe();
+			rsa4 = rsaPri.SwapKey_Exponent_D__Unsafe();
 			de=rsa4.Decrypt("PKCS1",en);
 			AssertMsg(de, de.equals(str));
 			AssertMsg(T("校验 OK","Verify OK"), rsa4.Verify("SHA1", sign, str));
@@ -156,7 +157,7 @@ public class Test {
 			ST("【测试一遍所有的加密、解密填充方式】  按回车键继续测试...", "[ Test all the encryption and decryption padding mode ]   Press Enter to continue testing...");
 			ReadIn();
 			RSA_Util rsa5 = new RSA_Util(2048);
-			testPaddings(false, rsa5, true);
+			testPaddings(false, rsa5, new RSA_Util(rsa5.ToPEM(true)), true);
 		}
 	}
 	
@@ -385,10 +386,20 @@ public class Test {
 		S(HR);
 		ST("测试一遍所有的加密、解密填充方式：","Test all the encryption and decryption padding mode:");
 		RSA_Util rsa = new RSA_Util(2048);
-		testPaddings(checkOpenSSL, rsa, true);
+		testPaddings(checkOpenSSL, rsa, new RSA_Util(rsa.ToPEM(true)), true);
+
+		S(HR);
+		ST("Unsafe|是否要对调公钥私钥（私钥加密公钥解密）重新测试一遍？(Y/N) N", "Unsafe | Do you want to swap the public and private keys (private key encryption and public key decryption) and test again? (Y/N) N");
+		System.out.print("> ");
+		String yn = ReadIn().trim().toUpperCase();
+		if (yn.equals("Y")) {
+			RSA_Util rsaPri = rsa.SwapKey_Exponent_D__Unsafe();
+			RSA_Util rsaPub = new RSA_Util(rsa.ToPEM(true)).SwapKey_Exponent_D__Unsafe();
+			testPaddings(checkOpenSSL, rsaPub, rsaPri, true);
+		}
 	}
 	/** 测试一遍所有的加密、解密填充方式 **/
-	static int testPaddings(boolean checkOpenSSL, RSA_Util rsa, boolean log) {
+	static int testPaddings(boolean checkOpenSSL, RSA_Util rsaPri, RSA_Util rsaPub, boolean log) {
 		int errCount=0;
 		ArrayList<String> errMsgs=new ArrayList<>();
 		String txt="1234567890";
@@ -400,7 +411,7 @@ public class Test {
 		
 		if(checkOpenSSL) {
 			try {
-				runOpenSSL(rsa, txtData);
+				runOpenSSL(rsaPri.hasPrivate()?rsaPri:rsaPub, txtData);
 			}catch(Exception e) {
 				S(T("运行OpenSSL失败：","Failed to run OpenSSL: ")+e.getMessage());
 				return errCount;
@@ -412,8 +423,8 @@ public class Test {
 			String errMsg="";
 			try {
 				{
-					byte[] enc=rsa.Encrypt(type, txtData);
-					byte[] dec=rsa.Decrypt(type, enc);
+					byte[] enc=rsaPub.Encrypt(type, txtData);
+					byte[] dec=rsaPri.Decrypt(type, enc);
 					boolean isOk=true;
 					if(dec.length!=txtData.length) {
 						isOk=false;
@@ -437,7 +448,7 @@ public class Test {
 						errMsg="+OpenSSL: "+T("OpenSSL加密出错", "OpenSSL encryption error");
 						throw e;
 					}
-					byte[] dec=rsa.Decrypt(type, enc);
+					byte[] dec=rsaPri.Decrypt(type, enc);
 					boolean isOk=true;
 					if(dec.length!=txtData.length) {
 						isOk=false;
@@ -474,8 +485,8 @@ public class Test {
 			String errMsg="";
 			try {
 				{
-					byte[] sign=rsa.Sign(type, txtData);
-					boolean isOk=rsa.Verify(type, sign, txtData);
+					byte[] sign=rsaPri.Sign(type, txtData);
+					boolean isOk=rsaPub.Verify(type, sign, txtData);
 					if(!isOk) {
 						errMsg=T("未通过校验","Failed verification");
 						throw new Exception(errMsg);
@@ -489,7 +500,7 @@ public class Test {
 						errMsg="+OpenSSL: "+T("OpenSSL签名出错", "OpenSSL signature error");
 						throw e;
 					}
-					boolean isOk=rsa.Verify(type, sign, txtData);
+					boolean isOk=rsaPub.Verify(type, sign, txtData);
 					if(!isOk) {
 						errMsg="+OpenSSL: "+T("未通过校验","Failed verification");
 						throw new Exception(errMsg);
@@ -533,13 +544,14 @@ public class Test {
 		AtomicInteger Count=new AtomicInteger(0);
 		AtomicInteger ErrCount=new AtomicInteger(0);
 		RSA_Util rsa=new RSA_Util(2048);
+		RSA_Util rsaPub=new RSA_Util(rsa.ToPEM(true));
 		S(T("正在测试中，线程数：","Under test, number of threads: ")+ThreadCount+T("，按回车键结束测试...",", press enter to end the test..."));
 		
 		for(int i=0;i<ThreadCount;i++) {
 			new Thread(new Runnable() {
 				public void run() {
 					while(!Abort.get()) {
-						int err=testPaddings(false, rsa, false);
+						int err=testPaddings(false, rsa, rsaPub, false);
 						if(err>0) {
 							ErrCount.addAndGet(err);
 						}

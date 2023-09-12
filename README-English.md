@@ -69,8 +69,10 @@ boolean isVerify=rsa.Verify("PKCS1+SHA1", sign, "test123");
 String pemTxt=rsa.ToPEM(false).ToPEM_PKCS8(false);
 
 //Unconventional (unsafe, not recommended): private key encryption, public key decryption, public key signature, private key verification
-RSA_Util rsa2=rsa.SwapKey_Exponent_D__Unsafe();
-//... rsa2.Encrypt rsa2.Decrypt rsa2.Sign rsa2.Verify
+RSA_Util rsaS_Private=rsa.SwapKey_Exponent_D__Unsafe();
+RSA_Util rsaS_Public=new RSA_Util(rsa.ToPEM(true)).SwapKey_Exponent_D__Unsafe();
+//... rsaS_Private.Encrypt rsaS_Public.Decrypt
+//... rsaS_Public.Sign rsaS_Private.Verify
 
 System.out.println(pemTxt+"\n"+enTxt+"\n"+deTxt+"\n"+sign+"\n"+isVerify);
 //****For more examples, please read Test.java****
@@ -276,7 +278,7 @@ The `RSA_Util.java` file depends on `RSA_PEM.java`, which encapsulates encryptio
 
 `RSA_PEM` **ToPEM(boolean convertToPublic)**: Export RSA_PEM object (then you can export PEM text by RSA_PEM.ToPEM method), if convertToPublic RSA containing private key will only return public key, RSA containing only public key will not be affected.
 
-`RSA_Util` **SwapKey_Exponent_D__Unsafe()**: [Unsafe and not recommended] Swap the public key exponent (Key_Exponent) and the private key exponent (Key_D): use the public key as the private key (new.Key_D=this.Key_Exponent) and the private key as the public key (new. Key_Exponent=this.Key_D), returns a new RSA object; for example, used for: private key encryption, public key decryption, this is an unconventional usage. The current object must contain a private key, otherwise an exception will be thrown if it cannot be swapped. Note: It is very insecure to use the public key as a private key, because the public key exponent of most generated keys is 0x10001 (AQAB), which is too easy to guess and cannot be used as a real private key.
+`RSA_Util` **SwapKey_Exponent_D__Unsafe()**: [Unsafe and not recommended] Swap the public key exponent (Key_Exponent) and the private key exponent (Key_D): use the public key as the private key (new.Key_D=this.Key_Exponent) and the private key as the public key (new.Key_Exponent=this.Key_D), returns a new RSA object; for example, used for: private key encryption, public key decryption, this is an unconventional usage. If the current key is a public key, the swap will not occur, and the new RSA returned will allow decryption and signing operations with the public key. Note: It is very unsafe to use a public key as a private key, because the public key exponent of most generated keys is 0x10001 (AQAB), which is too easy to guess and cannot be used as a true private key. In some private key encryption implementations, such as Java's own RSA, when using non-NoPadding padding, encryption with private key objects may use EMSA-PKCS1-v1_5 padding (using the private key exponent to construct a public key object does not have this problem ), so when interoperating between different programs, you may need to use the corresponding padding algorithm to first fill the data, and then use NoPadding padding to encrypt (decryption also uses NoPadding padding to decrypt, and then remove the padding data).
 
 `String` **Encrypt(String padding, String str)**: Encrypt arbitrary length string (utf-8) returns base64, and an exception is thrown if an error occurs. This method is thread safe. padding specifies the encryption padding, such as: PKCS1, OAEP+SHA256 uppercase, refer to the encryption padding table above, and the default is PKCS1 when using a null value.
 
